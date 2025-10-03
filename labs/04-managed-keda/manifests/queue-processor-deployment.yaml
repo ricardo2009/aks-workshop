@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keda-queue-processor
+  labels:
+    app: keda-queue-processor
+spec:
+  replicas: 0 # KEDA irá escalar de 0 para N
+  selector:
+    matchLabels:
+      app: keda-queue-processor
+  template:
+    metadata:
+      labels:
+        app: keda-queue-processor
+    spec:
+      containers:
+      - name: keda-queue-processor
+        image: YOUR_ACR_NAME.azurecr.io/keda-queue-processor:latest # Será substituído pelo script
+        ports:
+        - containerPort: 80
+        env:
+        - name: SERVICE_BUS_CONNECTION_STR
+          valueFrom:
+            secretKeyRef:
+              name: servicebus-secret
+              key: connectionString
+        - name: SERVICE_BUS_QUEUE_NAME
+          value: myqueue
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keda-queue-processor-service
+  labels:
+    app: keda-queue-processor
+spec:
+  selector:
+    app: keda-queue-processor
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+

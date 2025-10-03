@@ -1,0 +1,21 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: azure-servicebus-queue-scaledobject
+  namespace: keda-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: keda-queue-processor
+  pollingInterval: 30 # O KEDA verificará a fila a cada 30 segundos
+  cooldownPeriod: 300 # Tempo em segundos para o KEDA esperar antes de escalar para 0
+  minReplicas: 0
+  maxReplicas: 10
+  triggers:
+  - type: azure-servicebus
+    metadata:
+      queueName: myqueue
+      connectionFromEnv: SERVICE_BUS_CONNECTION_STR
+      messageCount: "5" # Escala quando há 5 ou mais mensagens na fila
+

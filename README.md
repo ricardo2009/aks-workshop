@@ -1,6 +1,30 @@
-# Workshop Técnico Hands-on de AKS
+# Workshop Técnico Hands-on de Azure Kubernetes Service (AKS)
 
-Este repositório contém o material completo para um workshop técnico hands-on de 2 dias sobre Azure Kubernetes Service (AKS), focado em robustez, troubleshooting e componentes avançados.
+Bem-vindo ao workshop técnico hands-on de Azure Kubernetes Service (AKS)! Este repositório contém o material completo para um workshop técnico de 2 dias, focado em robustez, troubleshooting e componentes avançados.
+
+## Visão Geral dos Laboratórios
+
+Os laboratórios são estruturados para serem executados sequencialmente, construindo conhecimento e complexidade a cada módulo. Cada laboratório inclui scripts, manifestos Kubernetes e um `README.md` detalhado com instruções passo a passo, saídas esperadas e dicas de troubleshooting.
+
+### Módulos Disponíveis:
+
+*   **[Lab 01: Criação e Configuração Básica do Cluster AKS](labs/01-aks-cluster-creation/README.md)**
+    *   Aprenda a provisionar um cluster AKS com as extensões gerenciadas essenciais e integrar com o Azure Container Registry (ACR).
+
+*   **[Lab 02: Monitoramento com Azure Managed Prometheus e Grafana](labs/02-managed-prometheus-grafana/README.md)**
+    *   Habilite e configure o Azure Monitor Managed Service para Prometheus e Azure Managed Grafana para monitorar seu cluster e aplicações.
+
+*   **[Lab 03: Service Mesh com Istio Gerenciado](labs/03-managed-istio/README.md)**
+    *   Explore o Istio gerenciado no AKS, implantando uma aplicação de exemplo (Bookinfo) e configurando mTLS, roteamento e observabilidade.
+
+*   **[Lab 04: Autoscaling com KEDA Gerenciado](labs/04-managed-keda/README.md)**
+    *   Configure o KEDA para escalar automaticamente suas aplicações com base em eventos de filas do Azure Service Bus e métricas HTTP.
+
+*   **[Lab 05: Ingress com NGINX Gerenciado](labs/05-managed-nginx/README.md)**
+    *   Habilite o NGINX Ingress Controller gerenciado no AKS e configure o roteamento de tráfego para aplicações web.
+
+*   **[Lab 06: Troubleshooting Avançado](labs/06-troubleshooting/README.md)**
+    *   Aprenda a diagnosticar e resolver problemas comuns em clusters AKS, com cenários práticos e soluções detalhadas.
 
 ## Estrutura do Conteúdo
 
@@ -54,4 +78,23 @@ Para cada cenário, serão fornecidos:
 
 ## Como Usar
 
-Clone este repositório para acessar todos os materiais do workshop.
+1.  **Clone o Repositório:**
+    ```bash
+    git clone https://github.com/ricardo2009/aks-workshop.git
+    cd aks-workshop
+    ```
+
+2.  **Siga os Laboratórios:**
+    Navegue até o diretório de cada laboratório (`labs/01-aks-cluster-creation`, `labs/02-managed-prometheus-grafana`, etc.) e siga as instruções detalhadas no arquivo `README.md` de cada um.
+
+3.  **Pré-requisitos:**
+    Certifique-se de ter o Azure CLI e `kubectl` instalados e configurados em sua máquina local. Uma assinatura Azure ativa é necessária para provisionar os recursos.
+
+## Contribuições
+
+Contribuições são bem-vindas! Sinta-se à vontade para abrir issues, sugerir melhorias ou enviar pull requests.
+
+## Licença
+
+Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+

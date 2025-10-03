@@ -1,0 +1,22 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: http-scaledobject
+  namespace: keda-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: keda-queue-processor
+  pollingInterval: 5
+  cooldownPeriod: 30
+  minReplicas: 0
+  maxReplicas: 5
+  triggers:
+  - type: http
+    metadata:
+      # O KEDA usará o serviço `keda-queue-processor-service` para expor as métricas HTTP
+      # e o NGINX Ingress Controller para rotear o tráfego para ele.
+      # O KEDA fará scrape do endpoint /metrics da aplicação.
+      value: "100" # Escala quando o número de requisições por segundo (RPS) excede 100
+
