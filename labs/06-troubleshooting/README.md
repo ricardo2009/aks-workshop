@@ -60,6 +60,26 @@ Explore os seguintes cenários para aprimorar suas habilidades de diagnóstico e
 *   **Descrição:** O processo de upgrade do cluster AKS falha ou resulta em um cluster instável.
 *   **Foco:** Logs de operação do AKS, compatibilidade de versões e estratégias de upgrade.
 
+### 10. [Azure Key Vault (Segredos e Certificados) no AKS](scenarios/azure-keyvault-secrets-certificates.md)
+
+*   **Descrição:** Aplicações no AKS não conseguem acessar segredos ou certificados do Azure Key Vault, ou a sincronização falha.
+*   **Foco:** Permissões da identidade gerenciada, configuração do Secrets Store CSI Driver, problemas de rede e validade de certificados.
+
+### 11. [Istio mTLS com Certificados Externos](scenarios/istio-mtls-external-certificates.md)
+
+*   **Descrição:** Comunicação mTLS entre serviços falha ou o gateway de entrada não apresenta o certificado correto ao usar certificados externos.
+*   **Foco:** Validade e formato dos certificados, configuração de Secrets Kubernetes, `Gateway`, `VirtualService` e CA raiz.
+
+### 12. [AGIC com Application Gateway Externo](scenarios/agic-external-agw-routing.md)
+
+*   **Descrição:** AGIC não sincroniza ou roteia corretamente com um Application Gateway pré-existente.
+*   **Foco:** Permissões da identidade do AGIC, configuração do AGIC, conflitos de propriedade e probes de saúde.
+
+### 13. [Comunicação Externa com AKS Privado](scenarios/aks-private-cluster-external-communication.md)
+
+*   **Descrição:** Aplicações ou o cluster AKS privado não conseguem se comunicar com serviços externos à VNet do AKS.
+*   **Foco:** DNS privado, Firewall do Azure/NVA, UDRs, NSGs e Private Link.
+
 ## Como Utilizar os Cenários
 
 Cada arquivo Markdown dentro da pasta `scenarios/` detalha um problema específico. Para cada cenário, você encontrará:
