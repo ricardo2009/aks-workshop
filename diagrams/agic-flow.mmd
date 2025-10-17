@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant Cliente
+  participant AppGateway as Application Gateway
+  participant AGIC as AGIC Pod
+  participant API as API Server
+  participant Pod as Backend Pod
+
+  Cliente->>AppGateway: Requisição HTTPS
+  AppGateway->>AGIC: Health probe / config
+  AGIC->>API: Watch Ingress/Service
+  API-->>AGIC: Atualizações
+  AGIC-->>AppGateway: Configuração Listener/Backend
+  AppGateway->>Pod: Encaminha tráfego (TLS end-to-end)
+  Pod-->>Cliente: Resposta HTTP 200
+
+  Note over AGIC,API: Validar permissões Managed Identity e annotations.

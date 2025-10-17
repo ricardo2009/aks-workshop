@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sqlserver-ha
+  namespace: financeiro
+spec:
+  replicas: 1
+  serviceName: sqlserver-ha
+  selector:
+    matchLabels:
+      app: sqlserver-ha
+  template:
+    metadata:
+      labels:
+        app: sqlserver-ha
+    spec:
+      containers:
+        - name: sqlserver
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sqlserver-secret
+                  key: sapassword
+          ports:
+            - containerPort: 1433
+              name: tcp
+          volumeMounts:
+            - name: data
+              mountPath: /var/opt/mssql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: managed-premium-retain
+        resources:
+          requests:
+            storage: 256Gi

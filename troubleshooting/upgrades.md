@@ -1,83 +1,98 @@
-# Cenário de Troubleshooting: Falhas em Upgrades de Cluster
+# Troubleshooting – Upgrades de Cluster AKS
 
-## Descrição do Problema
+## Objetivo
+Orientar execuções seguras de upgrade de control plane e node pools no AKS, minimizando indisponibilidades em ambientes bancários.
 
-O processo de upgrade de um cluster AKS falha, é interrompido ou resulta em um cluster em um estado inconsistente ou instável. Isso pode levar a interrupções de serviço, pods presos em estados de erro ou funcionalidades do cluster comprometidas.
+## Sintomas Comuns
+- `az aks upgrade` falha com incompatibilidades de API.
+- Pods críticos evictados sem respeitar PDB.
+- Serviços indisponíveis durante upgrade de node pool.
+- Add-ons (ex: KEDA, AGIC) não retornam após upgrade.
 
-## Causas Comuns
+## Diagnóstico Passo a Passo
+1. **Planejar versão alvo**
+   ```bash
+   az aks get-upgrades --resource-group rg-aks-caixa-prod --name aks-caixa-prod
+   ```
+2. **Checar APIs depreciadas**
+   ```bash
+   kubectl get --raw / | jq '.paths | keys[]' | rg 'beta'
+   ```
+   Utilize `kubescape`/`pluto` para identificar recursos removidos.
+3. **Validar PDB e readiness**
+   ```bash
+   kubectl get pdb -A
+   kubectl get nodes -o wide
+   ```
+4. **Executar upgrade control-plane**
+   ```bash
+   az aks upgrade --resource-group rg-aks-caixa-prod --name aks-caixa-prod --control-plane-only --kubernetes-version <versao>
+   ```
+5. **Upgrade node pool com max-surge**
+   ```bash
+   az aks nodepool upgrade \
+     --resource-group rg-aks-caixa-prod \
+     --cluster-name aks-caixa-prod \
+     --name np-prod \
+     --kubernetes-version <versao> \
+     --max-surge 33%
+   ```
+6. **Monitorar**
+   ```bash
+   watch kubectl get nodes
+   kubectl get events -A --sort-by=.lastTimestamp | tail -n 20
+   ```
 
-*   **Recursos Insuficientes:** Não há nós ou capacidade de recursos suficientes para realizar o upgrade, especialmente se o `maxSurge` estiver configurado para adicionar nós temporários.
-*   **Pods Problemáticos:** Pods que não terminam corretamente ou que impedem a drenagem dos nós durante o upgrade.
-*   **`PodDisruptionBudgets` (PDBs) Restritivos:** PDBs que impedem a drenagem de nós, bloqueando o upgrade.
-*   **Versões Incompatíveis:** Incompatibilidade entre a versão do Kubernetes para a qual o cluster está sendo atualizado e as versões de componentes ou aplicações implantadas.
-*   **Problemas de Rede:** Problemas de conectividade durante o upgrade que impedem a comunicação entre o control plane e os nós.
-*   **Add-ons ou Extensões:** Add-ons ou extensões de terceiros que não são compatíveis com a nova versão do Kubernetes ou que falham durante o upgrade.
-*   **Tempo Limite Excedido:** O upgrade excede o tempo limite configurado, levando a uma falha.
+## Linha Investigativa (kubectl + az)
+| Ordem | Comando | Objetivo | Como interpretar |
+|-------|---------|----------|------------------|
+| 1 | `az aks get-upgrades --resource-group <rg> --name <cluster>` | Confirmar janela suportada e versões disponíveis. | Versão alvo deve estar listada em `controlPlaneProfile.upgrades`. |
+| 2 | `kubectl get nodes -Lkubernetes.azure.com/nodepool -o wide` | Mapear pools, versões e zonas. | Versões diferentes no mesmo cluster indicam upgrade parcial. |
+| 3 | `kubectl get pods -A --field-selector=status.phase!=Running` | Identificar workloads não saudáveis antes do upgrade. | Pods `Pending`/`CrashLoop` devem ser estabilizados previamente. |
+| 4 | `kubectl get pdb -A` | Garantir políticas de interrupção adequadas. | `MIN AVAILABLE` >= 1 assegura alta disponibilidade. |
+| 5 | `az aks upgrade --control-plane-only` (dry-run com `--no-wait` + `--yes`) | Validar pré-requisitos antes de executar. | Erros retornam imediatamente (ex.: add-ons incompatíveis). |
+| 6 | `kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --force` | Testar cordon/drain em nó único. | Verificar se PDB impede drain; necessário ajustar antes do upgrade. |
+| 7 | `kubectl get node <node> -o jsonpath='{.metadata.labels.kubernetes\.azure\.com/mode}'` | Confirmar se nó é `system` ou `user`. | Pools `system` devem ser atualizados primeiro. |
+| 8 | `az aks nodepool upgrade --name <pool> --max-surge 33% --no-wait` + `watch kubectl get nodes` | Acompanhar progresso e substituição de nós. | Nós velhos aparecem `NotReady,SchedulingDisabled`; monitorar até remoção. |
+| 9 | `kubectl get mutatingwebhookconfigurations` | Checar webhooks que podem bloquear upgrades. | Webhooks indisponíveis podem impedir criação de novos pods durante upgrade. |
 
-## Como Reproduzir o Problema (Exemplo)
+## Ferramentas
+- `az aks`, `kubectl`, `pluto`, `kubescape`.
+- Azure Monitor (alertas upgrade window).
 
-1.  Tente fazer um upgrade de cluster com um `PodDisruptionBudget` muito restritivo para uma aplicação crítica.
-2.  Tente fazer um upgrade em um cluster com nós quase cheios e sem capacidade para adicionar nós de `maxSurge`.
+## Exemplos de Outputs
+- Erro de API depreciada:
+  ```text
+  error: unable to recognize "deploy.yaml": no matches for kind "Ingress" in version "extensions/v1beta1"
+  ```
+- Resultado upgrade:
+  ```text
+  Upgrade succeeded with warnings: Node pool np-prod requires manual upgrade.
+  ```
 
-## Solução e Diagnóstico
+## Causas Raiz Frequentes
+- Recursos legados (`extensions/v1beta1`) ainda implantados.
+- Falta de `podDisruptionBudget` impedindo drain seguro.
+- `maxPods` alto dificultando criação de nós adicionais.
+- Add-ons não compatíveis com versão alvo.
 
-1.  **Verificar o Status do Upgrade:**
+## Playbook de Resolução
+1. Rodar `kubectl api-resources --deprecated=true` e atualizar manifests.
+2. Criar/ajustar PDBs antes do upgrade.
+3. Utilizar `az aks nodepool upgrade --node-image-only` antes do upgrade de versão.
+4. Validar add-ons (KEDA, AGIC, Istio) em ambiente de staging.
+5. Registrar incidentes e tempo de indisponibilidade em `README_REVIEW.md`.
 
-    ```bash
-    az aks show --resource-group <seu-resource-group> --name <seu-cluster-name> --query "provisioningState"
-    ```
+## Boas Práticas Preventivas
+- Manter clusters uma versão atrás da GA.
+- Habilitar auto-upgrade de patch e janela de manutenção.
+- Documentar matriz de compatibilidade em `arquitetura/alta-disponibilidade.md`.
+- Executar upgrades fora de horários críticos (janela noturna).
 
-    Se o `provisioningState` não for `Succeeded` ou `Failed`, o upgrade pode estar em andamento ou preso.
+## Labs Relacionados
+- `labs/01-aks-cluster-creation` (baseline).
+- Sessão Dia 2 – Troubleshooting Profundo.
 
-2.  **Verificar Logs de Operação do AKS:**
-
-    No Azure Activity Log, procure por eventos relacionados ao upgrade do cluster AKS. Isso pode fornecer mensagens de erro detalhadas.
-
-3.  **Verificar `PodDisruptionBudgets` (PDBs):**
-
-    ```bash
-    kubectl get pdb --all-namespaces
-    ```
-
-    Se houver PDBs, verifique se eles estão impedindo a drenagem de nós. Considere desabilitá-los temporariamente para o upgrade (com cautela).
-
-4.  **Verificar o Status dos Nós e Pods:**
-
-    ```bash
-    kubectl get nodes
-    kubectl get pods --all-namespaces -o wide
-    ```
-
-    Procure por nós em estado `NotReady` ou pods presos em `Terminating` ou `ContainerCreating`.
-
-5.  **Verificar Logs de Pods Problemáticos:**
-
-    Se houver pods presos, verifique seus logs e eventos para entender por que eles não estão terminando ou iniciando corretamente.
-
-    ```bash
-    kubectl describe pod <nome-do-pod> -n <seu-namespace>
-    kubectl logs <nome-do-pod> -n <seu-namespace>
-    ```
-
-6.  **Verificar a Capacidade do Cluster:**
-
-    Certifique-se de que há nós disponíveis ou que o `maxSurge` pode ser acomodado. Se necessário, adicione mais nós ao pool antes do upgrade.
-
-7.  **Consultar a Matriz de Compatibilidade:**
-
-    Verifique a documentação do AKS para a matriz de compatibilidade entre versões do Kubernetes e add-ons/extensões.
-
-8.  **Tentar um Rollback (se possível):**
-
-    Em alguns casos, pode ser possível reverter para a versão anterior do Kubernetes se o upgrade falhou. Consulte a documentação do AKS para as opções de rollback.
-
-9.  **Contatar o Suporte do Azure:**
-
-    Se o problema persistir e você não conseguir diagnosticar/resolver, o suporte do Azure pode ajudar a investigar o estado do control plane.
-
-## Links Úteis
-
-*   [Upgrade an Azure Kubernetes Service (AKS) cluster](https://learn.microsoft.com/en-us/azure/aks/upgrade-cluster)
-*   [Troubleshoot AKS upgrade issues](https://learn.microsoft.com/en-us/azure/aks/troubleshoot-upgrade-issues)
-*   [Pod Disruption Budgets](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/)
-
+## Referências
+- [Upgrade AKS cluster](https://learn.microsoft.com/azure/aks/upgrade-cluster)
+- [Best practices for node upgrades](https://learn.microsoft.com/azure/aks/operator-best-practices-cluster-upgrades)

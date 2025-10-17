@@ -1,0 +1,13 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: managed-premium-retain
+provisioner: disk.csi.azure.com
+parameters:
+  skuname: Premium_LRS
+  kind: Managed
+  cachingmode: ReadOnly
+  diskEncryptionSetID: /subscriptions/<SUB>/resourceGroups/rg-aks-caixa-prod/providers/Microsoft.Compute/diskEncryptionSets/des-aks-caixa
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
