@@ -1,0 +1,9 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: sqlserver-data-snapshot
+  namespace: financeiro
+spec:
+  volumeSnapshotClassName: csi-azure-disk-snapclass
+  source:
+    persistentVolumeClaimName: pvc-sqlserver-data

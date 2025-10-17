@@ -1,97 +1,89 @@
-> [!NOTE]
-> This is a placeholder for the full content. The final version will be more detailed.
+# Troubleshooting – Networking (Azure CNI)
 
-# Cenário de Troubleshooting: Conectividade com Azure CNI
+## Objetivo
+Resolver incidentes de conectividade no AKS relacionados à CNI Azure, incluindo exaustão de IPs, SNAT e políticas de rede.
 
-**Nível:** Avançado  
-**Duração:** 75 minutos
+## Sintomas Comuns
+- Pods falhando com `FailedScheduling` por falta de IP.
+- Aplicações sem acesso outbound (timeouts).
+- Logs mostrando `no such host` ou `connection reset` em chamadas externas.
+- Métricas `pod_allocated_ips / pod_capacity_ips > 0.8`.
+- Regras de Network Policy bloqueando tráfego interno.
 
----
+## Diagnóstico Passo a Passo
+1. **Verificar capacidade de IPs**
+   ```bash
+   az aks show --resource-group rg-aks-caixa-prod --name aks-caixa-prod \
+     --query "agentPoolProfiles[].{name:name,podCount:podCount,maxPods:maxPods,subnet:VnetSubnetID}" -o table
+   kubectl get pod -o wide | wc -l
+   ```
+2. **Checar SNAT**
+   - Avaliar métricas `UnderSNAT` no Azure Load Balancer/Application Gateway.
+   - Se usar NAT Gateway, verificar `SNATPortUtilization`.
+3. **Validar policies**
+   ```bash
+   kubectl get networkpolicy -A
+   kubectl describe networkpolicy -n pagamentos deny-all-egress
+   ```
+4. **Testar conectividade** com `kubectl exec` e `curl` para hosts internos/externos.
+5. **Revisar rotas**
+   ```bash
+   az network vnet subnet show --name aks-subnet --resource-group rg-network-caixa --vnet-name vnet-core
+   ```
 
-## 🎯 Objetivo
+## Linha Investigativa (kubectl + rede)
+| Ordem | Comando | Objetivo | Como interpretar |
+|-------|---------|----------|------------------|
+| 1 | `kubectl get nodes -o wide` | Validar sub-rede e IPs atribuídos aos nós. | `INTERNAL-IP` fora do range esperado sugere associação incorreta de subnet. |
+| 2 | ``kubectl get pods -A -o wide \| awk 'NR>1 {print $1,$2,$7}' \| sort -u`` | Listar IPs de pod e detectar colisões. | IP repetido ou ausente indica exaustão/erro na CNI. |
+| 3 | `kubectl describe pod <pod>` | Revisar eventos `FailedScheduling`/`FailedCreatePodSandBox`. | `Insufficient pods` ou `Failed to allocate IP` apontam para limites de subnet. |
+| 4 | `kubectl exec -n <ns> <pod-debug> -- curl -I https://api.caixa.gov.br/healthz` | Teste outbound real. | Timeout confirma bloqueio; comparar com `--resolve` para DNS. |
+| 5 | ``kubectl get networkpolicy -A -o yaml \| grep -n "deny"`` | Localizar policies restritivas. | Confirmar se namespace possui exceções necessárias. |
+| 6 | `az monitor metrics list --resource <lb-resource-id> --metric SNATPortUtilization --interval PT5M` | Acompanhar saturação de portas SNAT em tempo quase real. | Valores > 0.75 sustentados indicam risco iminente (vide cenário `snat-exhaustion`). |
+| 7 | `az network lb show --name <lb> --resource-group <rg> --query "frontendIpConfigurations[].privateIpAddress"` | Validar IPs SNAT/Load Balancer. | Apenas um IP público com tráfego alto pode causar exaustão. |
+| 8 | `az network watcher connection-monitor test-configuration list --resource-group <rg> --name <monitor>` | Avaliar monitoramentos existentes. | Falhas recorrentes sinalizam caminho problemático específico. |
+| 9 | `kubectl get cm -n kube-system azure-cni-networkmonitor -o yaml` | Checar configuração do monitor da CNI. | Ajustes incorretos podem desativar alertas. |
 
-Diagnosticar e resolver problemas de conectividade de rede em clusters AKS que utilizam o **Azure CNI**, incluindo esgotamento de IPs, problemas de SNAT e comunicação entre pods e com serviços externos.
+## Ferramentas
+- `kubectl`, `az network`, Azure Monitor, Flow Logs.
+- Script `scripts/validate/validate-networking.sh` para acompanhar capacidade e SNAT em tempo real.
 
----
+## Exemplos de Outputs
+- Evento de scheduling:
+  ```text
+  0/9 nodes are available: 9 Insufficient pods.
+  ```
+- Log NAT Gateway:
+  ```text
+  SNAT ports exhausted for IP 10.10.1.4
+  ```
 
-## 🚨 Sintomas Comuns
+## Causas Raiz Frequentes
+- Sub-rede subdimensionada (/27) para produção.
+- Ausência de NAT Gateway em workloads com alto outbound.
+- Network Policy `default deny` sem exceções necessárias.
+- Azure Firewall bloqueando portas dinâmicas (>1024).
 
-- **Pods em `ContainerCreating` ou `Failed`:** Pods não conseguem iniciar devido à falha na alocação de IPs.
-- **Falha na comunicação Pod-para-Pod:** Pods no mesmo nó ou em nós diferentes não conseguem se comunicar.
-- **Falha na comunicação com a internet:** Pods não conseguem acessar recursos externos (ex: APIs públicas).
-- **Esgotamento de portas SNAT:** Conexões de saída falham intermitentemente.
+## Playbook de Resolução
+1. Expandir sub-rede via `az network vnet subnet update --address-prefixes`.
+2. Adicionar NAT Gateway e associar à sub-rede.
+3. Ajustar Network Policies com regras específicas.
+4. Revisar `maxPods` do node pool e recalibrar se necessário.
+5. Monitorar após ajuste com `pod_allocated_ips` e Flow Logs.
 
----
+> Consulte o cenário [`snat-exhaustion`](../scenarios/snat-exhaustion) para um exemplo real de mitigação com NAT Gateway.
 
-## 🎨 Diagrama do Fluxo de Rede com Azure CNI
+## Boas Práticas Preventivas
+- Planejar sub-redes /23 ou maiores.
+- Utilizar `Azure CNI Overlay` quando IPs on-premises são escassos.
+- Configurar alertas de utilização de IP > 70%.
+- Documentar dependências de rede em `diagrams/topologia-rede.mmd`.
 
-```mermaid
-graph TD
-    subgraph VNet
-        subgraph Subnet do AKS
-            A[Nó 1] -->|IP do Pod| B[Pod 1.1]
-            A -->|IP do Pod| C[Pod 1.2]
-            D[Nó 2] -->|IP do Pod| E[Pod 2.1]
-        end
-    end
+## Labs Relacionados
+- `labs/01-aks-cluster-creation` (configuração inicial).
+- `scenarios/dns-latency` (verificação de latência e forwarding).
+- `scenarios/snat-exhaustion/lab_reproducao` (saturação controlada de SNAT e mitigação com NAT Gateway).
 
-    B --> E
-    E --> B
-
-    subgraph Saída para Internet
-        B --> F(Azure Load Balancer / NAT Gateway)
-        F --> G[Internet]
-    end
-```
-
----
-
-## 🛠️ Playbook de Diagnóstico e Resolução
-
-### Passo 1: Verificar a Utilização de IPs na Subnet
-
-- Use o portal do Azure ou a CLI para verificar quantos IPs estão disponíveis na subnet do AKS.
-
-### Passo 2: Inspecionar os Nós do AKS
-
-```bash
-kubectl describe node <NOME-DO-NO>
-```
-
-- Verifique a seção `Allocatable` para `pods` e a contagem de IPs alocados.
-
-### Passo 3: Verificar Logs do Azure CNI
-
-- Conecte-se a um nó e verifique os logs do daemonset do Azure CNI.
-
-### Passo 4: Diagnosticar Problemas de SNAT
-
-- Verifique as métricas do Load Balancer para `SNAT Connection Count`.
-- Considere o uso de um **NAT Gateway** para mitigar o esgotamento de portas SNAT.
-
----
-
-## 🧪 Lab Prático: Simulando Esgotamento de IPs
-
-1.  **Criar um cluster com uma subnet pequena.**
-2.  **Fazer o deploy de um grande número de pods.**
-3.  **Observar que alguns pods ficam em estado `Pending` ou `ContainerCreating`.**
-4.  **Diagnosticar usando `kubectl describe pod` e verificando a disponibilidade de IPs na subnet.**
-5.  **Resolver o problema aumentando o espaço de endereçamento da subnet ou usando o Azure CNI Overlay.**
-
----
-
-## 🛡️ Boas Práticas e Prevenção
-
-- **Planeje sua VNet:** Calcule o número de IPs necessários com base no `maxPods` por nó e no número máximo de nós.
-- **Use Azure CNI Overlay:** Para clusters grandes, o modo Overlay pode economizar um número significativo de IPs da VNet.
-- **Use um NAT Gateway:** Para cargas de trabalho com muitas conexões de saída, um NAT Gateway é a solução recomendada para evitar o esgotamento de SNAT.
-
----
-
-## 📚 Referências
-
-- [1] **Microsoft Learn:** [Configure Azure CNI networking in AKS](https://learn.microsoft.com/azure/aks/configure-azure-cni)
-- [2] **Microsoft Learn:** [Troubleshoot Azure CNI networking](https://learn.microsoft.com/azure/aks/cni-azure-troubleshoot)
-- [3] **Microsoft Learn:** [Use a NAT gateway with an AKS cluster](https://learn.microsoft.com/azure/aks/nat-gateway)
-
+## Referências
+- [Azure CNI best practices](https://learn.microsoft.com/azure/aks/azure-cni-overview)
+- [Troubleshoot networking issues in AKS](https://learn.microsoft.com/azure/aks/troubleshoot-network)

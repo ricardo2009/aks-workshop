@@ -1,0 +1,45 @@
+graph TD
+  subgraph Azure[Azure Subscription]
+    subgraph RG[Resource Group rg-aks-caixa-prod]
+      LB[Azure Load Balancer]
+      subgraph AKS[AKS Cluster aks-caixa-prod]
+        direction TB
+        APIServer[(API Server)]
+        etcd[(etcd)]
+        Scheduler[Scheduler]
+        Controller[Controller Manager]
+        subgraph Zone1[Zona 1]
+          System1[Node Pool System]
+          User1[Node Pool User]
+        end
+        subgraph Zone2[Zona 2]
+          System2[Node Pool System]
+          User2[Node Pool User]
+        end
+        subgraph Zone3[Zona 3]
+          System3[Node Pool System]
+          User3[Node Pool User]
+        end
+      end
+      AppGw[Application Gateway v2]
+      Firewall[Azure Firewall Premium]
+      KeyVault[Azure Key Vault]
+      LogAnalytics[Log Analytics Workspace]
+    end
+  end
+
+  Clients((Clientes Caixa)) --> Firewall
+  Firewall --> AppGw
+  AppGw --> LB
+  LB -->|NodePort| Zone1
+  LB -->|NodePort| Zone2
+  LB -->|NodePort| Zone3
+
+  APIServer --> etcd
+  APIServer --> Scheduler
+  APIServer --> Controller
+  AKS --> LogAnalytics
+  AKS --> KeyVault
+
+  classDef controlplane fill:#1f77b4,color:#fff,stroke:#0d3c61;
+  class APIServer,etcd,Scheduler,Controller controlplane;

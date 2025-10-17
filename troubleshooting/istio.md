@@ -1,93 +1,86 @@
-# Cenário de Troubleshooting: Falhas de mTLS, Roteamento ou Injeção do Istio
+# Troubleshooting – Istio (Service Mesh)
 
-## Descrição do Problema
+## Objetivo
+Diagnosticar problemas comuns de tráfego e segurança ao utilizar Istio em clusters AKS, especialmente com mTLS e roteamento avançado.
 
-Aplicações em um service mesh Istio no AKS apresentam problemas de comunicação, como falhas de conexão, roteamento incorreto de tráfego ou pods que não recebem o sidecar do Istio (Envoy Proxy) durante a implantação.
+## Sintomas Comuns
+- Erros HTTP 503 com mensagem `UH` (upstream connection failure).
+- Tráfego bloqueado após habilitar mTLS.
+- Dashboards Kiali/Grafana sem dados.
+- Sidecar `istio-proxy` em CrashLoop.
 
-## Causas Comuns
+## Diagnóstico Passo a Passo
+1. **Validar injeção de sidecar**
+   ```bash
+   kubectl get pod -n pagamentos --show-labels | grep istio-injection
+   ```
+2. **Checar políticas mTLS**
+   ```bash
+   kubectl get peerauthentication -A
+   kubectl describe peerauthentication default -n pagamentos
+   ```
+3. **Inspecionar DestinationRules/VirtualServices**
+   ```bash
+   kubectl get virtualservice -A
+   kubectl describe virtualservice pix-api -n pagamentos
+   ```
+4. **Analisar logs do Envoy**
+   ```bash
+   kubectl logs <pod> -n pagamentos -c istio-proxy --tail 50
+   ```
+5. **Ver métricas** (Prometheus Istio / Azure Monitor)
+   - `istio_requests_total`, `istio_tcp_connections_closed_total`.
 
-*   **Injeção de Sidecar Falha:** O sidecar do Istio não é injetado nos pods, geralmente devido a labels de namespace incorretas (`istio-injection=enabled`) ou a um webhook de admissão do Istio com problemas.
-*   **Problemas de mTLS:** A comunicação mTLS (mutual TLS) entre serviços falha, resultando em erros de conexão. Isso pode ser devido a políticas de autenticação (`PeerAuthentication`) muito restritivas, certificados expirados ou problemas de sincronização do `istiod`.
-*   **Roteamento Incorreto:** `VirtualService` ou `Gateway` configurados incorretamente, direcionando o tráfego para o serviço errado ou não expondo a aplicação externamente.
-*   **Pods do Istio com Problemas:** Os pods do `istiod` (control plane) ou do `istio-ingressgateway` (data plane) estão em estado `CrashLoopBackOff`, `Pending` ou com erros nos logs.
-*   **Conflitos de Network Policy:** Políticas de rede do Kubernetes podem estar bloqueando o tráfego que o Istio tenta gerenciar.
+## Linha Investigativa (kubectl + istioctl)
+| Ordem | Comando | Objetivo | Como interpretar |
+|-------|---------|----------|------------------|
+| 1 | `kubectl get namespace pagamentos -o jsonpath='{.metadata.labels.istio-injection}'` | Verificar se a injeção automática está habilitada. | Valor `enabled` garante sidecars novos; `null` exige `kubectl label`. |
+| 2 | `kubectl get pod -n <namespace> -l app=<app> -o jsonpath='{.items[*].spec.containers[*].name}'` | Confirmar presença do container `istio-proxy`. | Ausência indica falha de mutating webhook. |
+| 3 | `istioctl proxy-status` | Avaliar sincronismo dos proxies. | Status `STALE`/`NOT SENT` aponta config ausente no control plane. |
+| 4 | `istioctl proxy-config routes <pod>.<namespace>` | Inspecionar rotas aplicadas ao Envoy. | Rota faltante ou host errado confirma erro em VirtualService. |
+| 5 | `kubectl get peerauthentication -A -o yaml` | Revisar políticas mTLS herdadas. | `mode: STRICT` sem DestinationRule correspondente gera 503. |
+| 6 | `kubectl logs <pod> -c istio-proxy --tail 100` | Observar erros TLS/rota. | Mensagens `tls.handshake` ou `no healthy upstream` direcionam ajuste. |
+| 7 | `kubectl exec <pod> -c istio-proxy -- curl -I http://<service>:<port>/healthz` | Validar rota interna com sidecar. | Sucesso 200 confirma caminho; erro 503 implica roteamento. |
+| 8 | `istioctl analyze -n <namespace>` | Rodar lint estático nas configs. | Saídas com `Error [IST0101]` sinalizam conflito de hosts/dominios. |
 
-## Como Reproduzir o Problema (Exemplo)
+## Ferramentas
+- `istioctl proxy-status`, `istioctl analyze`.
+- Kiali, Grafana, Jaeger.
 
-1.  Implante uma aplicação em um namespace sem a label `istio-injection=enabled`.
-2.  Configure um `PeerAuthentication` para `STRICT` mTLS, mas um dos serviços não está configurado para usar mTLS.
-3.  Crie um `VirtualService` com um `host` ou `route` incorreto.
+## Exemplos de Outputs
+- `istioctl proxy-status`:
+  ```text
+  NAME                                                   CDS        LDS        EDS        RDS        ECDS       STATUS
+  payments/pix-api-57dd...                               SYNCED     SYNCED     SYNCED     SYNCED     NOT SENT   STALE
+  ```
+- Log mTLS falho:
+  ```text
+  upstream connect error or disconnect/reset before headers. reset reason: connection termination
+  ```
 
-## Solução e Diagnóstico
+## Causas Raiz Frequentes
+- DestinationRule sem `tls` compatível com PeerAuthentication.
+- Falta de `Sidecar` resource limitando hosts permitidos.
+- Certificados expirados (quando utilizando CA externa).
+- Configuração errada de gateways (porta/cipher).
 
-1.  **Verificar a Injeção de Sidecar:**
+## Playbook de Resolução
+1. Executar `istioctl analyze` para detectar conflitos.
+2. Ajustar DestinationRule com `tls: mode: ISTIO_MUTUAL`.
+3. Atualizar certificados via Istio CA ou integração com Key Vault.
+4. Revisar Gateway/VirtualService para portas corretas.
+5. Monitorar com `istio_requests_total` após correção.
 
-    Verifique se o namespace da aplicação tem a label de injeção habilitada:
+## Boas Práticas Preventivas
+- Versionar manifests Istio em GitOps.
+- Testar roteamento em ambiente canário antes de produção.
+- Configurar alertas `istio_requests_total{response_code=~"5.."}`.
+- Sincronizar versão do add-on Istio com releases LTS.
 
-    ```bash
-    kubectl get namespace <seu-namespace> -o yaml
-    ```
+## Labs Relacionados
+- `labs/03-managed-istio`.
+- Sessão Dia 2 – Observabilidade e Segurança.
 
-    A saída deve incluir `istio-injection: enabled` nas labels. Se não estiver, adicione-a:
-
-    ```bash
-    kubectl label namespace <seu-namespace> istio-injection=enabled --overwrite
-    ```
-
-    Verifique se os pods da aplicação têm 2/2 contêineres (`READY`):
-
-    ```bash
-    kubectl get pods -n <seu-namespace>
-    ```
-
-2.  **Verificar o Status dos Pods do Istio:**
-
-    ```bash
-    kubectl get pods -n aks-istio-system
-    ```
-
-    Certifique-se de que `istiod` e `istio-ingressgateway` estão `Running` e `Ready`.
-
-3.  **Verificar Logs do `istiod` e `istio-ingressgateway`:**
-
-    ```bash
-    kubectl logs -f -n aks-istio-system -l app=istiod
-    kubectl logs -f -n aks-istio-system -l app=istio-ingressgateway
-    ```
-
-    Procure por erros ou avisos que possam indicar problemas de configuração ou comunicação.
-
-4.  **Verificar Configurações do Istio (`Gateway`, `VirtualService`, `DestinationRule`, `PeerAuthentication`):**
-
-    ```bash
-    kubectl get gateway,virtualservice,destinationrule,peerauthentication -n <seu-namespace> -o yaml
-    ```
-
-    Inspecione as configurações para garantir que os hosts, portas, rotas e políticas de tráfego estejam corretos e correspondam ao que você espera.
-
-5.  **Usar `istioctl analyze`:**
-
-    A ferramenta `istioctl analyze` pode ajudar a identificar problemas de configuração no seu service mesh.
-
-    ```bash
-    istioctl analyze --namespace <seu-namespace>
-    ```
-
-6.  **Verificar o Status de mTLS:**
-
-    Use `istioctl authn tls-check` para verificar o status de mTLS entre os serviços.
-
-    ```bash
-    istioctl authn tls-check <nome-do-pod>.<seu-namespace>
-    ```
-
-7.  **Testar Roteamento com `curl`:**
-
-    A partir de um pod dentro do mesh, tente acessar outros serviços para verificar o roteamento interno. Para acesso externo, use o IP do `istio-ingressgateway`.
-
-## Links Úteis
-
-*   [Istio Troubleshooting](https://istio.io/latest/docs/ops/troubleshooting/)
-*   [Istio-based service mesh add-on for Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/istio-about)
-*   [Diagnosing Istio with istioctl](https://istio.io/latest/docs/reference/commands/istioctl/#istioctl-analyze)
-
+## Referências
+- [Istio on AKS](https://learn.microsoft.com/azure/aks/istio-about)
+- [Istio troubleshooting guide](https://istio.io/latest/docs/ops/common-problems/)

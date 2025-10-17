@@ -1,0 +1,18 @@
+graph LR
+  Queue[Azure Service Bus Queue]
+  ScaledObject[KEDA ScaledObject]
+  MetricsServer[Metrics Server]
+  HPA[HPA Gerenciado pelo KEDA]
+  Deploy[Deployment Processor]
+  Pods[(Pods Worker)]
+
+  Queue --> ScaledObject
+  ScaledObject --> MetricsServer
+  MetricsServer --> HPA
+  HPA --> Deploy
+  Deploy --> Pods
+  ScaledObject -. Eventos -.-> HPA
+  Pods --> Queue
+
+  classDef critical fill:#ffd700,stroke:#b8860b,color:#000;
+  class Queue,ScaledObject critical;

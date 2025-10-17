@@ -1,84 +1,86 @@
-# Cenário de Troubleshooting: Pods em CrashLoopBackOff
+# Troubleshooting – Pods em CrashLoopBackOff
 
-## Descrição do Problema
+## Objetivo
+Identificar rapidamente a causa raiz de pods em CrashLoopBackOff, minimizando impacto em sistemas bancários.
 
-Um ou mais pods no cluster AKS entram repetidamente no estado `CrashLoopBackOff`. Isso significa que o contêiner dentro do pod está iniciando, falhando, e o Kubernetes está tentando reiniciá-lo novamente após um atraso crescente.
+## Sintomas Comuns
+- `kubectl get pods` mostra `CrashLoopBackOff` ou `ImagePullBackOff`.
+- Eventos `Back-off restarting failed container`.
+- Logs vazios (container falha antes de iniciar).
+- `OOMKilled` ou `Error` no campo `Last State`.
 
-## Causas Comuns
+## Diagnóstico Passo a Passo
+1. **Descrever pod**
+   ```bash
+   kubectl describe pod <pod> -n <namespace>
+   ```
+2. **Ver logs**
+   ```bash
+   kubectl logs <pod> -n <namespace> --previous
+   ```
+3. **Validar initContainers**
+   ```bash
+   kubectl describe pod <pod> -n <namespace> | rg 'Init Containers' -A5
+   ```
+4. **Checar eventos de imagem**
+   ```bash
+   kubectl get events -n <namespace> --field-selector involvedObject.name=<pod>
+   ```
+5. **Verificar quotas e limites**
+   ```bash
+   kubectl describe limitrange -n <namespace>
+   kubectl top pod <pod> -n <namespace>
+   ```
 
-*   **Erro na Aplicação:** O código da aplicação dentro do contêiner tem um bug que causa uma falha imediata na inicialização ou durante a execução.
-*   **Configuração Incorreta:** O manifesto do Deployment (ou outro recurso de workload) tem uma configuração incorreta, como um comando de inicialização (`command` ou `args`) errado, variáveis de ambiente ausentes ou incorretas, ou volumes mal configurados.
-*   **Recursos Insuficientes:** O contêiner tenta alocar mais CPU ou memória do que o disponível no nó ou do que foi solicitado/limitado no manifesto do pod, levando a um `OOMKilled` (Out Of Memory Killed) ou CPU throttling.
-*   **Imagem Docker Incorreta:** A imagem Docker especificada não existe, está corrompida, ou não contém o executável esperado.
-*   **Dependências Ausentes:** A aplicação depende de um serviço externo (banco de dados, API) que não está acessível ou não está pronto no momento da inicialização do pod.
-*   **Problemas de Permissão:** O contêiner não tem as permissões necessárias para acessar arquivos, diretórios ou recursos do sistema operacional.
+## Linha Investigativa (kubectl + logs)
+| Ordem | Comando | Objetivo | Como interpretar |
+|-------|---------|----------|------------------|
+| 1 | `kubectl get pod <pod> -n <namespace> -o wide` | Capturar node, reinícios e imagem. | Reinícios altos confirmam CrashLoop; `NODE` isolado indica problema específico. |
+| 2 | `kubectl describe pod <pod> -n <namespace>` | Consolidar eventos e probes. | Eventos `Back-off` ou falha em initContainers aparecem ao final; verificar `Last State`. |
+| 3 | `kubectl logs <pod> -n <namespace> --previous` | Obter logs da execução anterior. | Útil quando container reinicia rápido; ausência de logs sugere falha antes do entrypoint. |
+| 4 | `kubectl get events -n <namespace> --field-selector involvedObject.name=<pod>` | Ver eventos cronológicos. | Falhas de imagem (HTTP 401/404) ou `FailedMount` para volumes. |
+| 5 | `kubectl exec -n <namespace> <pod-debug> -- env` | Comparar variáveis com config esperada (usar pod debug). | Divergência indica ConfigMap/Secret incorreto. |
+| 6 | `kubectl describe node <node>` | Investigar pressão do nó (memory/disk). | Condições `MemoryPressure`/`DiskPressure` podem matar pods. |
+| 7 | `az acr repository show-tags --name <acr> --repository <image>` | Validar versão de imagem disponível. | Falhas `ImagePullBackOff` geralmente derivam de tag inexistente. |
 
-## Como Reproduzir o Problema (Exemplo)
+## Ferramentas
+- `kubectl`, `stern` para tail logs, Azure Monitor Container Insights.
 
-1.  Implante um contêiner que executa um comando inválido (e.g., `command: ["/bin/sh", "-c", "exit 1"]`).
-2.  Implante uma aplicação que tenta se conectar a um banco de dados que não existe ou está inacessível.
+## Exemplos de Outputs
+- Falha de imagem:
+  ```text
+  Failed to pull image "acrprod.azurecr.io/api:v2": unauthorized: authentication required
+  ```
+- OOMKilled:
+  ```text
+  Last State: Terminated
+    Reason: OOMKilled
+    Exit Code: 137
+  ```
 
-## Solução e Diagnóstico
+## Causas Raiz Frequentes
+- Credenciais ACR inválidas ou workload identity mal configurada.
+- Recursos insuficientes (memory/CPU) e limites incorretos.
+- Falhas em initContainer (migração de banco, download de certificados).
+- Probes (liveness/readiness) muito agressivas.
 
-1.  **Verificar o Status do Pod:**
+## Playbook de Resolução
+1. Ajustar credenciais (Secret Docker/Managed Identity) e reimplantar.
+2. Revisar `requests`/`limits` conforme consumo real (ver `kubectl top`).
+3. Desabilitar temporariamente probes para diagnóstico.
+4. Habilitar `restartPolicy: Never` em ambiente de debug para analisar container.
+5. Documentar causa e correção em `README_REVIEW.md` ou `scenarios/`.
 
-    ```bash
-    kubectl get pods -n <seu-namespace>
-    ```
+## Boas Práticas Preventivas
+- Utilizar `helm test` e pipelines com smoke tests.
+- Configurar alertas de `PodRestartCount` > 5 em 5 minutos.
+- Manter variações de config versionadas (ConfigMaps/Secrets) com rollback rápido.
+- Usar `initContainers` leves e idempotentes.
 
-    Observe o `STATUS` do pod. Se estiver `CrashLoopBackOff`, prossiga.
+## Labs Relacionados
+- `labs/04-managed-keda` (monitorar pods worker).
+- `labs/02-managed-prometheus-grafana` (dashboards de reinício).
 
-2.  **Verificar Logs do Contêiner:**
-
-    Este é o passo mais importante. Os logs geralmente contêm a mensagem de erro que causou a falha.
-
-    ```bash
-    kubectl logs <nome-do-pod> -n <seu-namespace>
-    ```
-
-    Se o pod já reiniciou várias vezes, você pode querer ver os logs da instância anterior:
-
-    ```bash
-    kubectl logs <nome-do-pod> -n <seu-namespace> --previous
-    ```
-
-3.  **Descrever o Pod:**
-
-    O comando `describe` fornece informações detalhadas sobre o pod, incluindo eventos, status dos contêineres, condições e mensagens de erro.
-
-    ```bash
-    kubectl describe pod <nome-do-pod> -n <seu-namespace>
-    ```
-
-    Preste atenção na seção `Events` e `State` dos contêineres.
-
-4.  **Verificar o Manifesto do Deployment:**
-
-    Inspecione o arquivo YAML do Deployment para garantir que o `command`, `args`, `env`, `image` e `volumeMounts` estejam corretos.
-
-    ```bash
-    kubectl get deployment <nome-do-deployment> -n <seu-namespace> -o yaml
-    ```
-
-5.  **Testar a Imagem Docker Localmente:**
-
-    Se você tiver acesso à imagem Docker, tente executá-la localmente para ver se ela inicia sem erros.
-
-    ```bash
-    docker run <sua-imagem>
-    ```
-
-6.  **Verificar Recursos (CPU/Memória):**
-
-    Se o `describe pod` indicar `OOMKilled` ou se os logs sugerirem falta de memória, ajuste os `resources.limits` e `resources.requests` no manifesto do pod.
-
-7.  **Verificar Dependências Externas:**
-
-    Certifique-se de que todos os serviços externos dos quais a aplicação depende estão acessíveis e funcionando.
-
-## Links Úteis
-
-*   [Troubleshoot applications in Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/troubleshooting-applications)
-*   [Debugging Pods](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/)
-*   [Common Kubernetes Errors](https://www.bluematador.com/blog/kubernetes-errors)
-
+## Referências
+- [Troubleshoot pod deployment issues](https://learn.microsoft.com/azure/aks/troubleshooting)
+- [Kubernetes debugging pods](https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/)

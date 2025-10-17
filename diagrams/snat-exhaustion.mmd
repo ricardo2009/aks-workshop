@@ -1,0 +1,23 @@
+%% Diagram: SNAT Exhaustion Mitigation Flow
+%% Usage: mermaid-cli or VSCode extension
+
+flowchart LR
+    subgraph AKS Cluster
+        Pods[Pods Pix Gateway]
+        Node[Node Pool Prod]
+    end
+
+    Pods --> LB[Azure Load Balancer]
+    LB -->|Portas SNAT Limitadas| Internet[(APIs Bacen)]
+
+    classDef alert fill:#fdd,stroke:#f66,stroke-width:2px;
+    class LB alert;
+
+    LB --> NG[NAT Gateway Dedicado]
+    NG --> Internet
+
+    Monitor[Azure Monitor]
+    LB -->|SNATPortUtilization| Monitor
+    NG -->|SNATPortUtilization| Monitor
+
+    Monitor --> Alertas[Alertas & Automation]

@@ -1,0 +1,20 @@
+graph TD
+  Internet((Internet))
+  AzureFirewall[Azure Firewall]
+  AppGateway[Application Gateway]
+  Ingress[Ingress Controller Pods]
+  Service[Services]
+  Pods[Pods Aplicação]
+  DB[Azure SQL / Sistemas Legados]
+
+  Internet --> AzureFirewall
+  AzureFirewall --> AppGateway
+  AppGateway --> Ingress
+  Ingress --> Service
+  Service --> Pods
+  Pods --> DB
+  DB --> Pods
+
+  style AzureFirewall fill:#ffcccc,stroke:#aa0000,color:#000
+  style AppGateway fill:#d0e1f9,stroke:#0f4c81
+  style Ingress fill:#fef08a,stroke:#a16207

@@ -1,0 +1,16 @@
+graph LR
+  subgraph Cluster[AKS Cluster]
+    Pods
+    DaemonsetLogs[AMA Logs DaemonSet]
+    SingletonMetrics[AMA Metrics Singleton]
+    NodeCollector[Node Collector]
+  end
+
+  Pods --> DaemonsetLogs
+  Pods --> SingletonMetrics
+  NodeCollector --> SingletonMetrics
+  SingletonMetrics --> AMWorkspace[Azure Monitor Workspace]
+  DaemonsetLogs --> AMWorkspace
+  AMWorkspace --> Grafana[Azure Managed Grafana]
+  AMWorkspace --> SIEM[SIEM Caixa]
+  AMWorkspace --> Alerts[Alert Rules]
