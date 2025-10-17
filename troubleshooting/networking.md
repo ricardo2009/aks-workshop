@@ -38,7 +38,7 @@ Resolver incidentes de conectividade no AKS relacionados à CNI Azure, incluindo
 | 2 | ``kubectl get pods -A -o wide | awk 'NR>1 {print $1,$2,$7}' | sort -u`` | Listar IPs de pod e detectar colisões. | IP repetido ou ausente indica exaustão/erro na CNI. |
 | 3 | `kubectl describe pod <pod>` | Revisar eventos `FailedScheduling`/`FailedCreatePodSandBox`. | `Insufficient pods` ou `Failed to allocate IP` apontam para limites de subnet. |
 | 4 | `kubectl exec -n <ns> <pod-debug> -- curl -I https://api.caixa.gov.br/healthz` | Teste outbound real. | Timeout confirma bloqueio; comparar com `--resolve` para DNS. |
-| 5 | ``kubectl get networkpolicy -A -o yaml \| grep -n "deny"`` | Localizar policies restritivas. | Confirmar se namespace possui exceções necessárias. |
+| 5 | ``kubectl get networkpolicy -A -o yaml | grep -n "deny"`` | Localizar policies restritivas. | Confirmar se namespace possui exceções necessárias. |
 | 6 | `az monitor metrics list --resource <lb-resource-id> --metric SNATPortUtilization --interval PT5M` | Acompanhar saturação de portas SNAT em tempo quase real. | Valores > 0.75 sustentados indicam risco iminente (vide cenário `snat-exhaustion`). |
 | 7 | `az network lb show --name <lb> --resource-group <rg> --query "frontendIpConfigurations[].privateIpAddress"` | Validar IPs SNAT/Load Balancer. | Apenas um IP público com tráfego alto pode causar exaustão. |
 | 8 | `az network watcher connection-monitor test-configuration list --resource-group <rg> --name <monitor>` | Avaliar monitoramentos existentes. | Falhas recorrentes sinalizam caminho problemático específico. |
