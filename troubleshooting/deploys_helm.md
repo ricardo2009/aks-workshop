@@ -31,7 +31,7 @@ Resolver falhas de deploy com Helm em clusters AKS, incluindo divergência de ve
    ```
 5. **Consultar eventos**
    ```bash
-   kubectl get events -n financeiro --sort-by=.metadata.creationTimestamp
+   kubectl get events -n financeiro --sort-by=.lastTimestamp
    ```
 
 ## Linha Investigativa (kubectl + helm)
