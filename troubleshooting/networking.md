@@ -35,7 +35,7 @@ Resolver incidentes de conectividade no AKS relacionados à CNI Azure, incluindo
 | Ordem | Comando | Objetivo | Como interpretar |
 |-------|---------|----------|------------------|
 | 1 | `kubectl get nodes -o wide` | Validar sub-rede e IPs atribuídos aos nós. | `INTERNAL-IP` fora do range esperado sugere associação incorreta de subnet. |
-| 2 | ``kubectl get pods -A -o wide \| awk 'NR>1 {print $1,$2,$7}' \| sort -u`` | Listar IPs de pod e detectar colisões. | IP repetido ou ausente indica exaustão/erro na CNI. |
+| 2 | ``kubectl get pods -A -o wide | awk 'NR>1 {print $1,$2,$7}' | sort -u`` | Listar IPs de pod e detectar colisões. | IP repetido ou ausente indica exaustão/erro na CNI. |
 | 3 | `kubectl describe pod <pod>` | Revisar eventos `FailedScheduling`/`FailedCreatePodSandBox`. | `Insufficient pods` ou `Failed to allocate IP` apontam para limites de subnet. |
 | 4 | `kubectl exec -n <ns> <pod-debug> -- curl -I https://api.caixa.gov.br/healthz` | Teste outbound real. | Timeout confirma bloqueio; comparar com `--resolve` para DNS. |
 | 5 | ``kubectl get networkpolicy -A -o yaml \| grep -n "deny"`` | Localizar policies restritivas. | Confirmar se namespace possui exceções necessárias. |
