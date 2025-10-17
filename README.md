@@ -1,104 +1,285 @@
-# Workshop Técnico Hands-on de Azure Kubernetes Service (AKS)
+# Workshop Técnico de Azure Kubernetes Service (AKS)
 
-Bem-vindo ao workshop técnico hands-on de Azure Kubernetes Service (AKS)! Este repositório contém o material completo para um workshop técnico de 2 dias, focado em robustez, troubleshooting e componentes avançados.
+## 🎯 Para Caixa Econômica Federal - Ambientes Bancários Missão Crítica
 
-## Visão Geral dos Laboratórios
+Bem-vindo ao workshop técnico hands-on de **Azure Kubernetes Service (AKS)** desenvolvido especificamente para ambientes bancários de missão crítica, com foco em **alta disponibilidade**, **conformidade**, **segurança** e **observabilidade avançada**.
 
-Os laboratórios são estruturados para serem executados sequencialmente, construindo conhecimento e complexidade a cada módulo. Cada laboratório inclui scripts, manifestos Kubernetes e um `README.md` detalhado com instruções passo a passo, saídas esperadas e dicas de troubleshooting.
+Este repositório contém o material completo para um **workshop técnico de 2 dias**, cobrindo desde fundamentos até troubleshooting avançado, com cenários práticos e reproduzíveis.
 
-### Módulos Disponíveis:
+---
 
-*   **[Lab 01: Criação e Configuração Básica do Cluster AKS](labs/01-aks-cluster-creation/README.md)**
-    *   Aprenda a provisionar um cluster AKS com as extensões gerenciadas essenciais e integrar com o Azure Container Registry (ACR).
+## 📚 Visão Geral
 
-*   **[Lab 02: Monitoramento com Azure Managed Prometheus e Grafana](labs/02-managed-prometheus-grafana/README.md)**
-    *   Habilite e configure o Azure Monitor Managed Service para Prometheus e Azure Managed Grafana para monitorar seu cluster e aplicações.
+O workshop está estruturado em módulos progressivos que cobrem todos os aspectos críticos para operação de AKS em ambientes bancários:
 
-*   **[Lab 03: Service Mesh com Istio Gerenciado](labs/03-managed-istio/README.md)**
-    *   Explore o Istio gerenciado no AKS, implantando uma aplicação de exemplo (Bookinfo) e configurando mTLS, roteamento e observabilidade.
+### **Dia 1: Fundamentos e Infraestrutura**
+- Arquitetura do AKS e componentes principais
+- Modelos de rede (Kubenet vs Azure CNI)
+- Controle de acesso (RBAC, AAD, Managed Identity)
+- Deploy de aplicações e storage
+- Networking avançado (AGIC, NGINX Ingress)
 
-*   **[Lab 04: Autoscaling com KEDA Gerenciado](labs/04-managed-keda/README.md)**
-    *   Configure o KEDA para escalar automaticamente suas aplicações com base em eventos de filas do Azure Service Bus e métricas HTTP.
+### **Dia 2: Operação e Troubleshooting**
+- Escalonamento (HPA, VPA, KEDA)
+- Monitoramento e observabilidade (Prometheus, Grafana, Azure Monitor)
+- Segurança e compliance
+- Troubleshooting avançado com cenários reais
+- Service Mesh com Istio
 
-*   **[Lab 05: Ingress com NGINX Gerenciado](labs/05-managed-nginx/README.md)**
-    *   Habilite o NGINX Ingress Controller gerenciado no AKS e configure o roteamento de tráfego para aplicações web.
+---
 
-*   **[Lab 06: Troubleshooting Avançado](labs/06-troubleshooting/README.md)**
-    *   Aprenda a diagnosticar e resolver problemas comuns em clusters AKS, com cenários práticos e soluções detalhadas.
+## 🗂️ Estrutura do Repositório
 
-## Estrutura do Conteúdo
+```
+aks-workshop/
+├── agenda/                      # Agenda detalhada do workshop (2 dias)
+├── arquitetura/                 # Documentação arquitetural e fundamentos
+├── labs/                        # Laboratórios hands-on práticos
+├── troubleshooting/             # Cenários de troubleshooting detalhados
+├── monitoramento/               # Monitoramento, métricas e observabilidade
+├── diagrams/                    # Diagramas Mermaid de arquitetura e fluxos
+├── dashboards-alerts/           # Dashboards Grafana e alertas prontos
+├── scripts/                     # Scripts utilitários e automação
+├── policy-compliance/           # Políticas Azure e compliance
+├── observability/               # Observabilidade avançada
+├── scenarios/                   # Cenários reais (template)
+└── apps/                        # Aplicações de exemplo
+```
 
-### Parte 1 – Fundamentos e Arquitetura do AKS
+---
 
-*   Visão macro do AKS: arquitetura, componentes principais, integração com o ecossistema Azure.
-*   Modelos de rede (Kubenet vs Azure CNI), controle de acesso (RBAC, AAD), práticas recomendadas.
-*   Boas práticas de design para clusters resilientes e seguros.
-*   Exemplos visuais, analogias e diagramas para facilitar o entendimento.
+## 🚀 Início Rápido
 
-### Parte 2 – Troubleshooting Avançado com Exemplos Práticos
+### Pré-requisitos
 
-Para cada cenário, serão fornecidos:
+Antes de iniciar o workshop, certifique-se de ter:
 
-*   Descrição do problema
-*   Sintomas observados
-*   Ferramentas e comandos para diagnóstico (kubectl, logs, Azure Monitor, etc.)
-*   Causas prováveis
-*   Soluções detalhadas
-*   Dicas de prevenção e otimização
-*   Exemplo prático com YAMLs, comandos e outputs esperados
+- **Assinatura Azure ativa** com permissões de Contributor
+- **Azure CLI** instalado (versão 2.50+)
+  ```bash
+  az --version
+  ```
+- **kubectl** instalado (versão 1.28+)
+  ```bash
+  kubectl version --client
+  ```
+- **Helm** instalado (versão 3.12+)
+  ```bash
+  helm version
+  ```
+- **Git** instalado
+  ```bash
+  git --version
+  ```
 
-**Cenários a cobrir:**
+### Clone o Repositório
 
-*   Falhas de DNS interno
-*   Problemas de conectividade com Azure CNI
-*   Deploys com Helm falhando
-*   AGIC com falhas de roteamento
-*   KEDA não escalando
-*   Istio com falhas de mTLS, roteamento ou injection
-*   Pods em CrashLoopBackOff
-*   Problemas com volumes persistentes
-*   Falhas em upgrades de cluster
-*   Azure Key Vault (Segredos e Certificados) no AKS
-*   Istio mTLS com Certificados Externos
-*   AGIC com Application Gateway Externo
-*   Comunicação Externa com AKS Privado
+```bash
+git clone https://github.com/ricardo2009/aks-workshop.git
+cd aks-workshop
+```
 
-### Parte 3 – Tópicos Avançados e Otimizações
+### Autentique-se no Azure
 
-*   Escalabilidade com HPA, VPA, KEDA
-*   Segurança: políticas de rede, PodSecurity, AAD, secrets
-*   Observabilidade: Azure Monitor, Prometheus, Grafana, OpenTelemetry
-*   Performance tuning: CPU/memória, afinidade, QoS
-*   Custo e eficiência: spot nodes, node pools otimizados
-*   Alta disponibilidade: zonas, probes, múltiplos node pools
-*   Governança: Azure Policy, Defender for Kubernetes, audit logs
+```bash
+az login
+az account set --subscription "<SUBSCRIPTION-ID>"
+```
 
-## Entregáveis
+### Execute o Setup Inicial
 
-*   Slides em PowerPoint para cada módulo (pasta `slides/`)
-*   Scripts e YAMLs dos labs hands-on (pasta `labs/`)
-*   Guia de troubleshooting em PDF (pasta `troubleshooting_guide/`)
-*   Templates de dashboards e alertas (pasta `dashboards_alerts/`)
+```bash
+bash scripts/setup-environment.sh
+```
 
-## Como Usar
+---
 
-1.  **Clone o Repositório:**
-    ```bash
-    git clone https://github.com/ricardo2009/aks-workshop.git
-    cd aks-workshop
-    ```
+## 📖 Módulos do Workshop
 
-2.  **Siga os Laboratórios:**
-    Navegue até o diretório de cada laboratório (`labs/01-aks-cluster-creation`, `labs/02-managed-prometheus-grafana`, etc.) e siga as instruções detalhadas no arquivo `README.md` de cada um.
+### 🏗️ [Arquitetura e Fundamentos](arquitetura/)
 
-3.  **Pré-requisitos:**
-    Certifique-se de ter o Azure CLI e `kubectl` instalados e configurados em sua máquina local. Uma assinatura Azure ativa é necessária para provisionar os recursos.
+Compreenda a arquitetura do AKS, componentes principais, modelos de rede, controle de acesso e best practices para ambientes de missão crítica.
 
-## Contribuições
+- [Fundamentos do AKS](arquitetura/fundamentos-aks.md)
+- [Modelos de Rede](arquitetura/modelos-rede.md)
+- [Controle de Acesso](arquitetura/controle-acesso.md)
+- [Alta Disponibilidade](arquitetura/alta-disponibilidade.md)
+- [Segurança](arquitetura/seguranca.md)
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues, sugerir melhorias ou enviar pull requests.
+### 🧪 [Laboratórios Hands-on](labs/)
 
-## Licença
+Laboratórios práticos sequenciais para construir conhecimento progressivamente:
 
-Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+1. **[Criação e Configuração do Cluster AKS](labs/01-aks-cluster-creation/)** - Provisione um cluster AKS com add-ons gerenciados
+2. **[Monitoramento com Prometheus e Grafana](labs/02-managed-prometheus-grafana/)** - Configure observabilidade completa
+3. **[Service Mesh com Istio](labs/03-managed-istio/)** - Implemente mTLS, roteamento e observabilidade
+4. **[Autoscaling com KEDA](labs/04-managed-keda/)** - Configure escalonamento baseado em eventos
+5. **[Ingress com NGINX](labs/05-managed-nginx/)** - Configure roteamento de tráfego externo
+6. **[Storage e Volumes Persistentes](labs/06-storage-volumes/)** - Gerencie armazenamento persistente
+
+### 🔧 [Troubleshooting Avançado](troubleshooting/)
+
+Cenários detalhados de troubleshooting com sintomas, diagnóstico, comandos e soluções:
+
+- [Falhas de DNS Interno (CoreDNS)](troubleshooting/dns.md)
+- [Problemas com AGIC](troubleshooting/agic.md)
+- [KEDA não escalando](troubleshooting/scaling.md)
+- [Conectividade Azure CNI](troubleshooting/networking.md)
+- [Volumes Persistentes](troubleshooting/storage.md)
+- [Deploys com Helm](troubleshooting/deploys-helm.md)
+- [Upgrades de Cluster](troubleshooting/upgrades.md)
+- [Pods em CrashLoopBackOff](troubleshooting/crashloopbackoff.md)
+- [Istio mTLS e Routing](troubleshooting/istio.md)
+- [Azure Key Vault Integration](troubleshooting/keyvault.md)
+
+### 📊 [Monitoramento e Observabilidade](monitoramento/)
+
+Configuração completa de monitoramento para ambientes de produção:
+
+- [Guia Completo de Monitoramento](monitoramento/monitoramento.md)
+- [ConfigMaps do Azure Monitor](monitoramento/configmaps/)
+- [Métricas Cruciais para Bancos](monitoramento/metricas-cruciais.md)
+- [Troubleshooting de Observabilidade](monitoramento/troubleshooting-observabilidade.md)
+
+### 📈 [Dashboards e Alertas](dashboards-alerts/)
+
+Dashboards Grafana e alertas prontos para uso:
+
+- **Dashboards:** Cluster Overview, NGINX Ingress, Istio, KEDA, Azure CNI
+- **Alertas:** High CPU/Memory, Pod Restart Loop, DNS Latency, IP Exhaustion, Backend Health
+
+### 🎨 [Diagramas](diagrams/)
+
+Diagramas Mermaid de arquitetura e fluxos:
+
+- Fluxo Ingress → Pod
+- Escalonamento KEDA
+- Pipeline de Métricas/Logs
+- Fluxo AGIC + Application Gateway
+- Topologia de Rede
+- Autenticação AAD
+- mTLS do Istio
+
+### 🛡️ [Policy e Compliance](policy-compliance/)
+
+Políticas Azure e checklist de conformidade para ambientes regulados:
+
+- Azure Policy Examples
+- Pod Security Standards
+- Network Policies
+- Compliance Checklist
+
+---
+
+## 🎓 Agenda do Workshop
+
+### **[Dia 1: Fundamentos e Infraestrutura](agenda/agenda-dia-1.md)**
+
+**09:00 - 12:30** - Fundamentos, Arquitetura, Networking  
+**14:00 - 17:30** - Labs práticos (Cluster, Ingress, Storage)
+
+### **[Dia 2: Operação e Troubleshooting](agenda/agenda-dia-2.md)**
+
+**09:00 - 12:30** - Escalonamento, Observabilidade, Service Mesh  
+**14:00 - 17:30** - Troubleshooting avançado e cenários reais
+
+---
+
+## 🎯 Público-Alvo
+
+Este workshop é destinado a:
+
+- **Engenheiros de Plataforma** responsáveis por AKS
+- **Arquitetos de Soluções** desenhando infraestrutura Kubernetes
+- **DevOps Engineers** operando clusters AKS
+- **SREs** garantindo confiabilidade de sistemas
+- **Engenheiros de Segurança** implementando controles de segurança
+
+**Nível:** Intermediário a Avançado (conhecimento básico de Kubernetes é recomendado)
+
+---
+
+## 🔑 Diferenciais
+
+### ✅ Foco em Ambientes Bancários
+Conteúdo específico para ambientes de missão crítica com requisitos rigorosos de disponibilidade, segurança e conformidade.
+
+### ✅ Troubleshooting Profundo
+Cada cenário inclui sintomas, causas raiz, comandos de diagnóstico, outputs esperados e playbooks de resolução.
+
+### ✅ Diagramas Visuais
+Todos os fluxos críticos são ilustrados com diagramas Mermaid para facilitar o entendimento.
+
+### ✅ Labs Reproduzíveis
+Todos os labs incluem scripts, manifestos e instruções passo a passo testadas.
+
+### ✅ Monitoramento Completo
+ConfigMaps, dashboards e alertas prontos para uso em produção.
+
+### ✅ Best Practices
+Baseado em documentação oficial da Microsoft e experiências de produção.
+
+---
+
+## 🤝 Contribuindo
+
+Contribuições são bem-vindas! Veja nosso [Guia de Contribuição](CONTRIBUTING.md) e [Guia de Estilo](STYLE_GUIDE.md) para detalhes.
+
+### Como Contribuir
+
+1. Fork o repositório
+2. Crie uma branch para sua feature (`git checkout -b feature/nova-feature`)
+3. Commit suas alterações (`git commit -m 'feat: adiciona nova feature'`)
+4. Push para a branch (`git push origin feature/nova-feature`)
+5. Abra um Pull Request
+
+---
+
+## 📄 Licença
+
+Este projeto está licenciado sob a **Licença MIT**. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+---
+
+## 📞 Suporte
+
+Para dúvidas, problemas ou sugestões:
+
+- Abra uma **[Issue](https://github.com/ricardo2009/aks-workshop/issues)** no GitHub
+- Consulte a **[Documentação Oficial do AKS](https://learn.microsoft.com/azure/aks/)**
+
+---
+
+## 🔗 Recursos Adicionais
+
+### Documentação Oficial
+- [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/)
+- [AKS Best Practices](https://learn.microsoft.com/azure/aks/best-practices)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [Azure Architecture Center](https://learn.microsoft.com/azure/architecture/)
+
+### Ferramentas
+- [Azure CLI](https://learn.microsoft.com/cli/azure/)
+- [kubectl](https://kubernetes.io/docs/reference/kubectl/)
+- [Helm](https://helm.sh/)
+- [Istio](https://istio.io/)
+- [KEDA](https://keda.sh/)
+
+### Comunidade
+- [AKS GitHub](https://github.com/Azure/AKS)
+- [Azure Community](https://techcommunity.microsoft.com/t5/azure/ct-p/Azure)
+- [Kubernetes Slack](https://kubernetes.slack.com/)
+
+---
+
+## ⭐ Agradecimentos
+
+Este workshop foi desenvolvido para a **Caixa Econômica Federal** com foco em excelência técnica e aplicabilidade prática em ambientes bancários de missão crítica.
+
+**Versão:** 1.0  
+**Última atualização:** Outubro 2025
+
+---
+
+**Pronto para começar?** Acesse a [Agenda do Dia 1](agenda/agenda-dia-1.md) e inicie sua jornada no AKS! 🚀
 
